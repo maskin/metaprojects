@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,7 +40,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update repository data [skip ci]"
-            git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git HEAD:main
+            git push
           fi
 
       - name: Build dashboard
