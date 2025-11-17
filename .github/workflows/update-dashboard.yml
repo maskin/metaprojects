@@ -25,7 +25,7 @@ jobs:
 
       - name: Fetch repository data
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: npm run fetch-repos
 
       - name: Commit and push data
@@ -48,6 +48,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
           publish_dir: ./dist
 
