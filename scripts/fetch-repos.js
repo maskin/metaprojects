@@ -1,49 +1,56 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import readline from 'readline';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-if (!GITHUB_TOKEN) {
-  console.error('Error: GITHUB_TOKEN environment variable is not set');
-  process.exit(1);
-}
+let GITHUB_TOKEN;
 
 const API_BASE = 'https://api.github.com';
-const HEADERS = {
-  'Authorization': `token ${GITHUB_TOKEN}`,
-  'Accept': 'application/vnd.github.v3+json',
-  'User-Agent': 'GitHub-Repos-Dashboard'
-};
-
-// 主要なファイル拡張子
 const MAIN_FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.py', '.md', '.json', '.yaml', '.yml', '.html', '.css', '.java', '.go', '.rs', '.cpp', '.c'];
 
-// APIリクエストを実行（レート制限対応）
+async function getGitHubToken() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise(resolve => {
+    rl.question('Please enter your GitHub Personal Access Token: ', (token) => {
+      rl.close();
+      resolve(token);
+    });
+  });
+}
+
 async function makeRequest(url, options = {}) {
+  const HEADERS = {
+    'Authorization': `token ${GITHUB_TOKEN}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'GitHub-Repos-Dashboard'
+  };
+
   const response = await fetch(url, { ...options, headers: { ...HEADERS, ...options.headers } });
-  
-  // レート制限の確認
+
   const remaining = parseInt(response.headers.get('x-ratelimit-remaining') || '0');
   const resetTime = parseInt(response.headers.get('x-ratelimit-reset') || '0');
-  
+
   if (response.status === 403 && remaining === 0) {
     const waitTime = resetTime * 1000 - Date.now() + 1000;
     console.warn(`Rate limit exceeded. Waiting ${Math.ceil(waitTime / 1000)} seconds...`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
-    return makeRequest(url, options); // リトライ
+    return makeRequest(url, options);
   }
-  
+
   if (!response.ok && response.status !== 404) {
     throw new Error(`API request failed: ${response.status} ${response.statusText}`);
   }
-  
+
   return response;
 }
 
-// リポジトリ一覧を取得
 async function fetchAllRepos() {
   const repos = [];
   let page = 1;
@@ -51,7 +58,6 @@ async function fetchAllRepos() {
 
   while (hasMore) {
     const response = await makeRequest(`${API_BASE}/user/repos?per_page=100&page=${page}&sort=updated&direction=desc`);
-
     const data = await response.json();
     if (data.length === 0) {
       hasMore = false;
@@ -64,7 +70,6 @@ async function fetchAllRepos() {
   return repos;
 }
 
-// リポジトリの詳細情報を取得
 async function fetchRepoDetails(repo) {
   const [readme, languages, contents] = await Promise.all([
     fetchReadme(repo),
@@ -92,11 +97,9 @@ async function fetchRepoDetails(repo) {
   };
 }
 
-// READMEを取得
 async function fetchReadme(repo) {
   try {
     const response = await makeRequest(`${API_BASE}/repos/${repo.full_name}/readme`);
-
     if (response.ok) {
       const data = await response.json();
       const content = Buffer.from(data.content, 'base64').toString('utf-8');
@@ -111,11 +114,9 @@ async function fetchReadme(repo) {
   return null;
 }
 
-// 言語統計を取得
 async function fetchLanguages(repo) {
   try {
     const response = await makeRequest(`${API_BASE}/repos/${repo.full_name}/languages`);
-
     if (response.ok) {
       return await response.json();
     }
@@ -125,20 +126,18 @@ async function fetchLanguages(repo) {
   return {};
 }
 
-// 主要ファイルの内容を取得
 async function fetchMainFiles(repo) {
   const files = [];
-  const maxFiles = 10; // 最大10ファイルまで
+  const maxFiles = 10;
 
   try {
     const tree = await fetchRepoTree(repo, repo.default_branch);
     const mainFiles = tree
       .filter(item => {
         const ext = path.extname(item.path).toLowerCase();
-        return MAIN_FILE_EXTENSIONS.includes(ext) && item.size < 100000; // 100KB未満のファイル
+        return MAIN_FILE_EXTENSIONS.includes(ext) && item.size < 100000;
       })
       .sort((a, b) => {
-        // READMEや主要な設定ファイルを優先
         const priorityA = getFilePriority(a.path);
         const priorityB = getFilePriority(b.path);
         return priorityB - priorityA;
@@ -166,7 +165,6 @@ async function fetchMainFiles(repo) {
   return files;
 }
 
-// ファイルの優先度を計算
 function getFilePriority(filePath) {
   const name = path.basename(filePath).toLowerCase();
   if (name === 'readme.md' || name === 'readme') return 100;
@@ -176,11 +174,9 @@ function getFilePriority(filePath) {
   return 50;
 }
 
-// リポジトリのツリーを取得
 async function fetchRepoTree(repo, branch) {
   try {
     const response = await makeRequest(`${API_BASE}/repos/${repo.full_name}/git/trees/${branch}?recursive=1`);
-
     if (response.ok) {
       const data = await response.json();
       return data.tree.filter(item => item.type === 'blob');
@@ -191,11 +187,9 @@ async function fetchRepoTree(repo, branch) {
   return [];
 }
 
-// ファイルの内容を取得
 async function fetchFileContent(repo, filePath) {
   try {
     const response = await makeRequest(`${API_BASE}/repos/${repo.full_name}/contents/${filePath}`);
-
     if (response.ok) {
       const data = await response.json();
       if (data.encoding === 'base64') {
@@ -209,8 +203,13 @@ async function fetchFileContent(repo, filePath) {
   return null;
 }
 
-// メイン処理
 async function main() {
+  GITHUB_TOKEN = await getGitHubToken();
+  if (!GITHUB_TOKEN) {
+    console.error('Error: GitHub token is required.');
+    process.exit(1);
+  }
+
   console.log('Fetching repositories...');
   const repos = await fetchAllRepos();
   console.log(`Found ${repos.length} repositories`);
@@ -222,7 +221,6 @@ async function main() {
     try {
       const details = await fetchRepoDetails(repo);
       reposData.push(details);
-      // APIレート制限を避けるため、少し待機
       await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error(`Error processing ${repo.full_name}:`, error.message);
