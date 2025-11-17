@@ -8,7 +8,7 @@
     "language": "TypeScript",
     "stars": 1,
     "forks": 0,
-    "updatedAt": "2025-11-17T08:15:34Z",
+    "updatedAt": "2025-11-17T08:19:38Z",
     "createdAt": "2025-11-14T05:05:07Z",
     "size": 49,
     "defaultBranch": "main",
@@ -56,8 +56,8 @@
       },
       {
         "path": ".github/workflows/update-dashboard.yml",
-        "size": 1407,
-        "content": "name: Update Dashboard\n\non:\n  schedule:\n    # 毎日 UTC 0:00 (日本時間 9:00) に実行\n    - cron: '0 0 * * *'\n  workflow_dispatch: # 手動実行も可能\n\njobs:\n  update:\n    runs-on: ubuntu-latest\n    \n    steps:\n      - name: Checkout repository\n        uses: actions/checkout@v4\n        with:\n          token: ${{ secrets.GH_PAT }}\n\n      - name: Setup Node.js\n        uses: actions/setup-node@v4\n        with:\n          node-version: '20'\n          cache: 'npm'\n\n      - name: Install dependencies\n        run: npm ci\n\n      - name: Fetch repository data\n        env:\n          GITHUB_TOKEN: ${{ secrets.GH_PAT }}\n        run: npm run fetch-repos\n\n      - name: Commit and push data\n        if: github.ref == 'refs/heads/main'\n        run: |\n          git config --local user.email \"action@github.com\"\n          git config --local user.name \"GitHub Action\"\n          git add public/repos-data.json\n          if git diff --staged --quiet; then\n            echo \"No changes to commit\"\n          else\n            git commit -m \"Update repository data [skip ci]\"\n            git push\n          fi\n\n      - name: Build dashboard\n        run: npm run build\n\n      - name: Deploy to GitHub Pages\n        if: github.ref == 'refs/heads/main'\n        uses: peaceiris/actions-gh-pages@v3\n        with:\n          github_token: ${{ secrets.GH_PAT }}\n          publish_dir: ./dist\n          force_orphan: true\n"
+        "size": 1378,
+        "content": "name: Update Dashboard\n\non:\n  schedule:\n    # 毎日 UTC 0:00 (日本時間 9:00) に実行\n    - cron: '0 0 * * *'\n  workflow_dispatch: # 手動実行も可能\n\njobs:\n  update:\n    runs-on: ubuntu-latest\n    \n    steps:\n      - name: Checkout repository\n        uses: actions/checkout@v4\n        with:\n          token: ${{ secrets.GH_PAT }}\n\n      - name: Setup Node.js\n        uses: actions/setup-node@v4\n        with:\n          node-version: '20'\n          cache: 'npm'\n\n      - name: Install dependencies\n        run: npm ci\n\n      - name: Fetch repository data\n        env:\n          GITHUB_TOKEN: ${{ secrets.GH_PAT }}\n        run: npm run fetch-repos\n\n      - name: Commit and push data\n        if: github.ref == 'refs/heads/main'\n        run: |\n          git config --local user.email \"action@github.com\"\n          git config --local user.name \"GitHub Action\"\n          git add public/repos-data.json\n          if git diff --staged --quiet; then\n            echo \"No changes to commit\"\n          else\n            git commit -m \"Update repository data [skip ci]\"\n            git push\n          fi\n\n      - name: Build dashboard\n        run: npm run build\n\n      - name: Deploy to GitHub Pages\n        if: github.ref == 'refs/heads/main'\n        uses: peaceiris/actions-gh-pages@v3\n        with:\n          github_token: ${{ secrets.GH_PAT }}\n          publish_dir: ./dist\n"
       },
       {
         "path": "DAY01.md",
