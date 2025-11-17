@@ -204,7 +204,12 @@ async function fetchFileContent(repo, filePath) {
 }
 
 async function main() {
-  GITHUB_TOKEN = await getGitHubToken();
+  if (process.env.GITHUB_TOKEN) {
+    GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+  } else {
+    GITHUB_TOKEN = await getGitHubToken();
+  }
+
   if (!GITHUB_TOKEN) {
     console.error('Error: GitHub token is required.');
     process.exit(1);
