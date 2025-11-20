@@ -8,9 +8,9 @@
     "language": "Python",
     "stars": 0,
     "forks": 0,
-    "updatedAt": "2025-11-18T02:47:44Z",
+    "updatedAt": "2025-11-19T03:48:19Z",
     "createdAt": "2025-11-18T02:31:46Z",
-    "size": 37,
+    "size": 41,
     "defaultBranch": "main",
     "topics": [],
     "readme": {
@@ -18,7 +18,7 @@
       "encoding": "base64"
     },
     "languages": {
-      "Python": 13425,
+      "Python": 21495,
       "JavaScript": 3403,
       "HTML": 1706,
       "CSS": 1395
@@ -36,8 +36,8 @@
       },
       {
         "path": "src/backend/app.py",
-        "size": 2315,
-        "content": "import os\nfrom flask import Flask, jsonify, request, send_from_directory\nfrom flask_cors import CORS\nfrom sqlalchemy.orm import Session\nfrom database import SessionLocal, engine, Broadcast\nfrom datetime import datetime\nimport hashlib\n\n# --- Flask App Initialization ---\napp = Flask(__name__, static_folder='../../frontend')\n\n# Enable CORS for all routes\nCORS(app, resources={r\"/api/*\": {\"origins\": \"*\"}})\n\n# --- Database Session --- \ndef get_db():\n    db = SessionLocal()\n    try:\n        yield db\n    finally:\n        db.close()\n\n# --- API Endpoints ---\n@app.route(\"/api/broadcasts\", methods=[\"GET\"])\ndef get_broadcasts():\n    db: Session = next(get_db())\n    broadcasts = db.query(Broadcast).order_by(Broadcast.scheduled_at.asc()).all()\n    return jsonify([{\n        \"id\": b.id,\n        \"uuid\": str(b.uuid),\n        \"content\": b.content,\n        \"scheduled_at\": b.scheduled_at.isoformat(),\n        \"priority\": b.priority,\n        \"status\": b.status,\n        \"task_type\": b.task_type,\n        \"created_at\": b.created_at.isoformat() if b.created_at else None\n    } for b in broadcasts])\n\n@app.route(\"/api/broadcasts\", methods=[\"POST\"])\ndef create_broadcast():\n    data = request.json\n    if not data or 'content' not in data or 'scheduled_at' not in data:\n        return jsonify({\"error\": \"`content` and `scheduled_at` are required.\"}), 400\n\n    db: Session = next(get_db())\n    content_hash = hashlib.sha256(data['content'].encode('utf-8')).hexdigest()\n\n    new_broadcast = Broadcast(\n        content=data['content'],\n        scheduled_at=datetime.fromisoformat(data['scheduled_at']),\n        priority=data.get('priority', 0),\n        task_type=data.get('task_type', 'REGULAR'),\n        status='SCHEDULED',\n        content_hash=content_hash\n    )\n\n    db.add(new_broadcast)\n    db.commit()\n    db.refresh(new_broadcast)\n\n    return jsonify({\n        \"id\": new_broadcast.id,\n        \"uuid\": str(new_broadcast.uuid)\n    }), 201\n\n# --- Frontend Serving ---\n@app.route('/')\ndef serve_index():\n    return send_from_directory(app.static_folder, 'index.html')\n\n@app.route('/<path:path>')\ndef serve_static(path):\n    return send_from_directory(app.static_folder, path)\n\n# --- Main Execution ---\nif __name__ == '__main__':\n    # Note: `debug=True` is for development only.\n    app.run(host='0.0.0.0', port=5001, debug=True)"
+        "size": 2586,
+        "content": "import os\nfrom flask import Flask, jsonify, request, send_from_directory\nfrom flask_cors import CORS\nfrom sqlalchemy.orm import Session\nfrom database import SessionLocal, engine, Broadcast\nfrom datetime import datetime\nimport hashlib\nfrom scheduler import init_scheduler\n\n# --- Flask App Initialization ---\napp = Flask(__name__, static_folder='../../frontend')\n\n# Enable CORS for all routes\nCORS(app, resources={r\"/api/*\": {\"origins\": \"*\"}})\n\n# --- Database Session --- \ndef get_db():\n    db = SessionLocal()\n    try:\n        yield db\n    finally:\n        db.close()\n\n# --- API Endpoints ---\n@app.route(\"/api/broadcasts\", methods=[\"GET\"])\ndef get_broadcasts():\n    db: Session = next(get_db())\n    broadcasts = db.query(Broadcast).order_by(Broadcast.scheduled_at.asc()).all()\n    return jsonify([{\n        \"id\": b.id,\n        \"uuid\": str(b.uuid),\n        \"content\": b.content,\n        \"scheduled_at\": b.scheduled_at.isoformat(),\n        \"priority\": b.priority,\n        \"status\": b.status,\n        \"task_type\": b.task_type,\n        \"created_at\": b.created_at.isoformat() if b.created_at else None\n    } for b in broadcasts])\n\n@app.route(\"/api/broadcasts\", methods=[\"POST\"])\ndef create_broadcast():\n    data = request.json\n    if not data or 'content' not in data or 'scheduled_at' not in data:\n        return jsonify({\"error\": \"`content` and `scheduled_at` are required.\"}), 400\n\n    db: Session = next(get_db())\n    content_hash = hashlib.sha256(data['content'].encode('utf-8')).hexdigest()\n\n    new_broadcast = Broadcast(\n        content=data['content'],\n        scheduled_at=datetime.fromisoformat(data['scheduled_at']),\n        priority=data.get('priority', 0),\n        task_type=data.get('task_type', 'REGULAR'),\n        status='SCHEDULED',\n        content_hash=content_hash\n    )\n\n    db.add(new_broadcast)\n    db.commit()\n    db.refresh(new_broadcast)\n\n    return jsonify({\n        \"id\": new_broadcast.id,\n        \"uuid\": str(new_broadcast.uuid)\n    }), 201\n\n# --- Frontend Serving ---\n@app.route('/')\ndef serve_index():\n    return send_from_directory(app.static_folder, 'index.html')\n\n@app.route('/<path:path>')\ndef serve_static(path):\n    return send_from_directory(app.static_folder, path)\n\n# --- Main Execution ---\nif __name__ == '__main__':\n    # Initialize Scheduler\n    init_scheduler(app)\n    \n    # Note: `debug=True` is for development only.\n    # Warning: With debug=True, the reloader will start two schedulers.\n    # For production or testing scheduler, use use_reloader=False or handle the lock.\n    app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)"
       },
       {
         "path": "GEMINI.md",
@@ -85,9 +85,9 @@
     "language": "TypeScript",
     "stars": 1,
     "forks": 0,
-    "updatedAt": "2025-11-18T00:12:49Z",
+    "updatedAt": "2025-11-19T00:12:36Z",
     "createdAt": "2025-11-14T05:05:07Z",
-    "size": 136,
+    "size": 159,
     "defaultBranch": "main",
     "topics": [],
     "readme": {
