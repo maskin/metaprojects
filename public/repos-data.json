@@ -8,9 +8,9 @@
     "language": "TypeScript",
     "stars": 0,
     "forks": 0,
-    "updatedAt": "2026-02-13T00:17:11Z",
+    "updatedAt": "2026-02-13T10:50:16Z",
     "createdAt": "2026-02-08T08:12:28Z",
-    "size": 451,
+    "size": 470,
     "defaultBranch": "main",
     "topics": [],
     "readme": {
@@ -18,10 +18,11 @@
       "encoding": "base64"
     },
     "languages": {
-      "TypeScript": 536319,
+      "TypeScript": 537579,
       "JavaScript": 25168,
       "CSS": 5826,
-      "HTML": 710
+      "HTML": 710,
+      "Dockerfile": 298
     },
     "mainFiles": [
       {
@@ -46,13 +47,13 @@
       },
       {
         "path": "client/src/main.tsx",
-        "size": 1954,
-        "content": "import { trpc } from \"@/lib/trpc\";\nimport { UNAUTHED_ERR_MSG } from '@shared/const';\nimport { QueryClient, QueryClientProvider } from \"@tanstack/react-query\";\nimport { httpBatchLink, TRPCClientError } from \"@trpc/client\";\nimport { createRoot } from \"react-dom/client\";\nimport superjson from \"superjson\";\nimport App from \"./App\";\nimport \"./index.css\";\n\nconst queryClient = new QueryClient();\n\nconst redirectToLoginIfUnauthorized = (error: unknown) => {\n  if (!(error instanceof TRPCClientError)) return;\n  if (typeof window === \"undefined\") return;\n\n  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;\n\n  if (!isUnauthorized) return;\n\n  // Redirect to login page with current path as redirect\n  if (window.location.pathname !== \"/login\") {\n    const currentPath = window.location.pathname + window.location.search;\n    window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;\n  }\n};\n\nqueryClient.getQueryCache().subscribe(event => {\n  if (event.type === \"updated\" && event.action.type === \"error\") {\n    const error = event.query.state.error;\n    redirectToLoginIfUnauthorized(error);\n    console.error(\"[API Query Error]\", error);\n  }\n});\n\nqueryClient.getMutationCache().subscribe(event => {\n  if (event.type === \"updated\" && event.action.type === \"error\") {\n    const error = event.mutation.state.error;\n    redirectToLoginIfUnauthorized(error);\n    console.error(\"[API Mutation Error]\", error);\n  }\n});\n\nconst trpcClient = trpc.createClient({\n  links: [\n    httpBatchLink({\n      url: \"/api/trpc\",\n      transformer: superjson,\n      fetch(input, init) {\n        return globalThis.fetch(input, {\n          ...(init ?? {}),\n          credentials: \"include\",\n        });\n      },\n    }),\n  ],\n});\n\ncreateRoot(document.getElementById(\"root\")!).render(\n  <trpc.Provider client={trpcClient} queryClient={queryClient}>\n    <QueryClientProvider client={queryClient}>\n      <App />\n    </QueryClientProvider>\n  </trpc.Provider>\n);\n"
+        "size": 2274,
+        "content": "import { trpc } from \"@/lib/trpc\";\nimport { UNAUTHED_ERR_MSG } from '@shared/const';\nimport { QueryClient, QueryClientProvider } from \"@tanstack/react-query\";\nimport { httpBatchLink, TRPCClientError } from \"@trpc/client\";\nimport { createRoot } from \"react-dom/client\";\nimport superjson from \"superjson\";\nimport App from \"./App\";\nimport \"./index.css\";\n\nconst queryClient = new QueryClient();\n\nconst redirectToLoginIfUnauthorized = (error: unknown) => {\n  if (!(error instanceof TRPCClientError)) return;\n  if (typeof window === \"undefined\") return;\n\n  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;\n\n  if (!isUnauthorized) return;\n\n  // Redirect to login page with current path as redirect\n  if (window.location.pathname !== \"/login\") {\n    const currentPath = window.location.pathname + window.location.search;\n    window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;\n  }\n};\n\nqueryClient.getQueryCache().subscribe(event => {\n  if (event.type === \"updated\" && event.action.type === \"error\") {\n    const error = event.query.state.error;\n    redirectToLoginIfUnauthorized(error);\n    console.error(\"[API Query Error]\", error);\n  }\n});\n\nqueryClient.getMutationCache().subscribe(event => {\n  if (event.type === \"updated\" && event.action.type === \"error\") {\n    const error = event.mutation.state.error;\n    redirectToLoginIfUnauthorized(error);\n    console.error(\"[API Mutation Error]\", error);\n  }\n});\n\n// Use environment variable for backend URL in production\nconst getBackendUrl = () => {\n  // Check if we're in production and have a backend URL configured\n  if (import.meta.env.VITE_API_URL) {\n    return import.meta.env.VITE_API_URL;\n  }\n  // Development: use relative path for Vite proxy\n  return \"/api/trpc\";\n};\n\nconst trpcClient = trpc.createClient({\n  links: [\n    httpBatchLink({\n      url: getBackendUrl(),\n      transformer: superjson,\n      fetch(input, init) {\n        return globalThis.fetch(input, {\n          ...(init ?? {}),\n          credentials: \"include\",\n        });\n      },\n    }),\n  ],\n});\n\ncreateRoot(document.getElementById(\"root\")!).render(\n  <trpc.Provider client={trpcClient} queryClient={queryClient}>\n    <QueryClientProvider client={queryClient}>\n      <App />\n    </QueryClientProvider>\n  </trpc.Provider>\n);\n"
       },
       {
         "path": "server/_core/index.ts",
-        "size": 1952,
-        "content": "import \"dotenv/config\";\nimport express from \"express\";\nimport { createServer } from \"http\";\nimport net from \"net\";\nimport { createExpressMiddleware } from \"@trpc/server/adapters/express\";\nimport { registerOAuthRoutes } from \"./oauth\";\nimport { appRouter } from \"../routers\";\nimport { createContext } from \"./context\";\nimport { serveStatic, setupVite } from \"./vite\";\n\nfunction isPortAvailable(port: number): Promise<boolean> {\n  return new Promise(resolve => {\n    const server = net.createServer();\n    server.listen(port, () => {\n      server.close(() => resolve(true));\n    });\n    server.on(\"error\", () => resolve(false));\n  });\n}\n\nasync function findAvailablePort(startPort: number = 3000): Promise<number> {\n  for (let port = startPort; port < startPort + 20; port++) {\n    if (await isPortAvailable(port)) {\n      return port;\n    }\n  }\n  throw new Error(`No available port found starting from ${startPort}`);\n}\n\nasync function startServer() {\n  const app = express();\n  const server = createServer(app);\n  // Configure body parser with larger size limit for file uploads\n  app.use(express.json({ limit: \"50mb\" }));\n  app.use(express.urlencoded({ limit: \"50mb\", extended: true }));\n  // OAuth callback under /api/oauth/callback\n  registerOAuthRoutes(app);\n  // tRPC API\n  app.use(\n    \"/api/trpc\",\n    createExpressMiddleware({\n      router: appRouter,\n      createContext,\n    })\n  );\n  // development mode uses Vite, production mode uses static files\n  if (process.env.NODE_ENV === \"development\") {\n    await setupVite(app, server);\n  } else {\n    serveStatic(app);\n  }\n\n  const preferredPort = parseInt(process.env.PORT || \"3000\");\n  const port = await findAvailablePort(preferredPort);\n\n  if (port !== preferredPort) {\n    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);\n  }\n\n  server.listen(port, () => {\n    console.log(`Server running on http://localhost:${port}/`);\n  });\n}\n\nstartServer().catch(console.error);\n"
+        "size": 2892,
+        "content": "import \"dotenv/config\";\nimport express from \"express\";\nimport { createServer } from \"http\";\nimport net from \"net\";\nimport { createExpressMiddleware } from \"@trpc/server/adapters/express\";\nimport { registerOAuthRoutes } from \"./oauth\";\nimport { appRouter } from \"../routers\";\nimport { createContext } from \"./context\";\nimport { serveStatic, setupVite } from \"./vite\";\n\nfunction isPortAvailable(port: number): Promise<boolean> {\n  return new Promise(resolve => {\n    const server = net.createServer();\n    server.listen(port, () => {\n      server.close(() => resolve(true));\n    });\n    server.on(\"error\", () => resolve(false));\n  });\n}\n\nasync function findAvailablePort(startPort: number = 3000): Promise<number> {\n  for (let port = startPort; port < startPort + 20; port++) {\n    if (await isPortAvailable(port)) {\n      return port;\n    }\n  }\n  throw new Error(`No available port found starting from ${startPort}`);\n}\n\nasync function startServer() {\n  const app = express();\n  const server = createServer(app);\n\n  // Enable CORS for frontend\n  app.use((req, res, next) => {\n    const origin = req.headers.origin;\n    // Allow requests from actual frontend domains and local development\n    const allowedOrigins = [\n      'https://a3803yvb.up.railway.app',  // Railway backend (actual)\n      'https://hub.medf.dev',             // Vercel frontend (custom domain)\n      'https://medf-hub.vercel.app',        // Vercel frontend (old)\n      'http://localhost:5173',\n      'http://localhost:5174',\n    ];\n\n    if (allowedOrigins.includes(origin || '')) {\n      res.setHeader('Access-Control-Allow-Origin', origin || '*');\n    }\n\n    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');\n    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');\n    res.setHeader('Access-Control-Allow-Credentials', 'true');\n\n    if (req.method === 'OPTIONS') {\n      return res.sendStatus(200);\n    }\n    next();\n  });\n\n  // Configure body parser with larger size limit for file uploads\n  app.use(express.json({ limit: \"50mb\" }));\n  app.use(express.urlencoded({ limit: \"50mb\", extended: true }));\n  // OAuth callback under /api/oauth/callback\n  registerOAuthRoutes(app);\n  // tRPC API\n  app.use(\n    \"/api/trpc\",\n    createExpressMiddleware({\n      router: appRouter,\n      createContext,\n    })\n  );\n  // development mode uses Vite, production mode uses static files\n  if (process.env.NODE_ENV === \"development\") {\n    await setupVite(app, server);\n  } else {\n    serveStatic(app);\n  }\n\n  const preferredPort = parseInt(process.env.PORT || \"3000\");\n  const port = await findAvailablePort(preferredPort);\n\n  if (port !== preferredPort) {\n    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);\n  }\n\n  server.listen(port, () => {\n    console.log(`Server running on http://localhost:${port}/`);\n  });\n}\n\nstartServer().catch(console.error);\n"
       },
       {
         "path": "client/src/App.tsx",
@@ -85,9 +86,9 @@
     "language": "TypeScript",
     "stars": 1,
     "forks": 0,
-    "updatedAt": "2026-02-12T00:16:44Z",
+    "updatedAt": "2026-02-13T00:19:15Z",
     "createdAt": "2025-11-14T05:05:07Z",
-    "size": 405,
+    "size": 406,
     "defaultBranch": "main",
     "topics": [],
     "readme": {
